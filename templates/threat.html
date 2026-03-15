@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SentinelSOC - Threat Intel</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body data-theme="{{ settings.theme }}">
+
+<div class="sidebar">
+    <h2>SentinelSOC Pro</h2>
+    <p class="credit">Built by Nowfir</p>
+    <ul>
+        <li><a href="/">Dashboard</a></li>
+        <li><a href="/alerts">Alerts</a></li>
+        <li><a href="/incidents">Incidents</a></li>
+        <li><a href="/threat">Threat Intel</a></li>
+        <li><a href="/reports">Reports</a></li>
+        <li><a href="/settings">Settings</a></li>
+    </ul>
+</div>
+
+<div class="main">
+    <h1>Threat Intelligence</h1>
+
+    {% if intel %}
+    <table class="alert-table">
+        <tr>
+            <th>IP</th>
+            <th>Location</th>
+            <th>ISP</th>
+            <th>Attempts</th>
+            <th>Severity</th>
+            <th>Threat Score</th>
+            <th>Reputation</th>
+            <th>Source</th>
+            <th>Anomaly</th>
+            <th>MITRE</th>
+            <th>Action</th>
+        </tr>
+
+        {% for item in intel %}
+        <tr>
+            <td>{{ item.ip }}</td>
+            <td>{{ item.city }}, {{ item.country }}</td>
+            <td>{{ item.isp }}</td>
+            <td>{{ item.attempts }}</td>
+            <td>{{ item.severity }}</td>
+            <td>{{ item.threat_score }}</td>
+            <td>{{ item.reputation }} ({{ item.reputation_score }})</td>
+            <td>{{ item.reputation_source }}</td>
+            <td>{{ item.anomaly_level }}</td>
+            <td>{{ item.mitre_technique_id }}<br><small>{{ item.mitre_technique_name }}</small></td>
+            <td>{{ item.recommended_action }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <div class="card">
+        <p>No threat intelligence entries available.</p>
+    </div>
+    {% endif %}
+</div>
+
+</body>
+</html>

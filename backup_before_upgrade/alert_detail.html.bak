@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SentinelSOC - Alert Details</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body data-theme="{{ settings.theme }}">
+
+<div class="sidebar">
+    <h2>SentinelSOC Pro</h2>
+    <p class="credit">Built by Nowfir</p>
+    <ul>
+        <li><a href="/">Dashboard</a></li>
+        <li><a href="/alerts">Alerts</a></li>
+        <li><a href="/incidents">Incidents</a></li>
+        <li><a href="/threat">Threat Intel</a></li>
+        <li><a href="/reports">Reports</a></li>
+        <li><a href="/settings">Settings</a></li>
+    </ul>
+</div>
+
+<div class="main">
+    <h1>Alert Details</h1>
+
+    <div class="card">
+        <p><strong>IP:</strong> {{ alert.source_ip }}</p>
+        <p><strong>Type:</strong> {{ alert.alert_type }}</p>
+        <p><strong>Attempts:</strong> {{ alert.failed_attempts }}</p>
+        <p><strong>Severity:</strong> {{ alert.severity }}</p>
+        <p><strong>Country:</strong> {{ alert.country }}</p>
+        <p><strong>City:</strong> {{ alert.city }}</p>
+        <p><strong>ISP:</strong> {{ alert.isp }}</p>
+        <p><strong>Anomaly Score:</strong> {{ alert.anomaly_score }}</p>
+        <p><strong>Anomaly Level:</strong> {{ alert.anomaly_level }}</p>
+        <p><strong>Disposition:</strong> {{ alert.disposition }}</p>
+        <p><strong>Status:</strong> {{ alert.status }}</p>
+    </div>
+
+    <div class="card" style="margin-top:20px;">
+        <h3>Analyst Action</h3>
+        <form method="POST" action="/alert_action">
+            <input type="hidden" name="alert_id" value="{{ alert.id }}">
+            <p><button name="action" value="TRUE_POSITIVE" type="submit">Mark True Positive</button></p>
+            <p><button name="action" value="FALSE_POSITIVE" type="submit">Mark False Positive</button></p>
+            <p><button name="action" value="ESCALATED" type="submit">Mark Escalated</button></p>
+            <p><button name="action" value="UNREVIEWED" type="submit">Reset Review State</button></p>
+        </form>
+    </div>
+
+    <div class="card" style="margin-top:20px;">
+        <h3>Raw Log Viewer</h3>
+        {% if raw_logs %}
+            <pre class="raw-log-box">{% for line in raw_logs %}{{ line }}
+{% endfor %}</pre>
+        {% else %}
+            <p>No raw log lines found for this IP.</p>
+        {% endif %}
+    </div>
+</div>
+
+</body>
+</html>

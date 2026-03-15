@@ -1,0 +1,12 @@
+version: "3.9"
+
+services:
+  sentinelsoc-pro:
+    build: .
+    container_name: sentinelsoc-pro
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./logs:/app/logs
+      - ./alerts:/app/alerts
+    restart: unless-stopped

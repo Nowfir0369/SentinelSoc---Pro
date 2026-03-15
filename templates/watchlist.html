@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SentinelSOC - IOC Watchlist</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body data-theme="{{ settings.theme }}">
+
+<div class="sidebar">
+    <h2>SentinelSOC Pro</h2>
+    <p class="credit">Built by Nowfir</p>
+    <ul>
+        <li><a href="/">Dashboard</a></li>
+        <li><a href="/events">Events</a></li>
+        <li><a href="/campaigns">Campaigns</a></li>
+        <li><a href="/watchlist">Watchlist</a></li>
+        <li><a href="/alerts">Alerts</a></li>
+        <li><a href="/incidents">Incidents</a></li>
+        <li><a href="/threat">Threat Intel</a></li>
+        <li><a href="/reports">Reports</a></li>
+        <li><a href="/settings">Settings</a></li>
+    </ul>
+</div>
+
+<div class="main">
+    <h1>IOC Watchlist</h1>
+
+    <div class="card">
+        <h3>Add IOC</h3>
+        <form method="POST" action="/watchlist">
+            <div class="form-row">
+                <input type="text" name="ip" placeholder="Suspicious IP address" required>
+            </div>
+            <div class="form-row">
+                <textarea name="note" placeholder="Reason / note"></textarea>
+            </div>
+            <button type="submit">Add to Watchlist</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h3>Export</h3>
+        <a href="/export/blocklist"><button>Download Blocklist</button></a>
+    </div>
+
+    {% if items %}
+        {% for item in items %}
+        <div class="card">
+            <div class="detail-grid">
+                <div class="detail-item"><strong>IP</strong><span>{{ item.ip }}</span></div>
+                <div class="detail-item"><strong>Added</strong><span>{{ item.created_at }}</span></div>
+            </div>
+            <div class="note-box">{{ item.note or "No note provided." }}</div>
+
+            <form method="POST" action="/remove_watchlist">
+                <input type="hidden" name="ip" value="{{ item.ip }}">
+                <button type="submit">Remove</button>
+            </form>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="card">
+            <p>No watchlist items added yet.</p>
+        </div>
+    {% endif %}
+</div>
+
+</body>
+</html>

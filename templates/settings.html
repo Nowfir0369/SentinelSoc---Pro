@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SentinelSOC - Settings</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body data-theme="{{ settings.theme }}">
+
+<div class="sidebar">
+    <h2>SentinelSOC Pro</h2>
+    <p class="credit">Built by Nowfir</p>
+    <ul>
+        <li><a href="/">Dashboard</a></li>
+        <li><a href="/events">Events</a></li>
+        <li><a href="/campaigns">Campaigns</a></li>
+        <li><a href="/watchlist">Watchlist</a></li>
+        <li><a href="/alerts">Alerts</a></li>
+        <li><a href="/incidents">Incidents</a></li>
+        <li><a href="/threat">Threat Intel</a></li>
+        <li><a href="/reports">Reports</a></li>
+        <li><a href="/settings">Settings</a></li>
+    </ul>
+</div>
+
+<div class="main">
+    <h1>Settings Control Center</h1>
+
+    {% if request.args.get("saved") %}
+    <div class="card"><p>Settings saved successfully.</p></div>
+    {% endif %}
+
+    {% if request.args.get("telegram_test") %}
+    <div class="card">
+        <p>Telegram test status: {{ request.args.get("telegram_test") }}</p>
+        <p>{{ request.args.get("msg", "").replace("_", " ") }}</p>
+    </div>
+    {% endif %}
+
+    {% if request.args.get("email_test") %}
+    <div class="card">
+        <p>Email test status: {{ request.args.get("email_test") }}</p>
+        <p>{{ request.args.get("msg", "").replace("_", " ") }}</p>
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <form method="POST" action="/settings">
+            <h3>General</h3>
+
+            <div class="form-row">
+                <label><input type="checkbox" name="auto_refresh_enabled" {% if settings.auto_refresh_enabled %}checked{% endif %}> Auto Refresh Enabled</label>
+            </div>
+
+            <div class="form-row">
+                <label>Refresh Seconds</label>
+                <input type="number" name="refresh_seconds" value="{{ settings.refresh_seconds }}">
+            </div>
+
+            <div class="form-row">
+                <label>Theme</label>
+                <select name="theme">
+                    <option value="dark" {% if settings.theme == "dark" %}selected{% endif %}>Dark</option>
+                    <option value="light" {% if settings.theme == "light" %}selected{% endif %}>Light</option>
+                </select>
+            </div>
+
+            <div class="form-row">
+                <label><input type="checkbox" name="auto_open_browser" {% if settings.auto_open_browser %}checked{% endif %}> Auto Open Browser</label>
+            </div>
+
+            <hr>
+
+            <h3>Siren</h3>
+            <div class="form-row">
+                <label><input type="checkbox" name="siren_enabled" {% if settings.siren_enabled %}checked{% endif %}> Siren Enabled</label>
+            </div>
+            <div class="form-row">
+                <label>Siren Seconds</label>
+                <input type="number" name="siren_seconds" value="{{ settings.siren_seconds }}">
+            </div>
+            <div class="form-row">
+                <label>Custom Siren File</label>
+                <input type="text" name="custom_siren_file" value="{{ settings.custom_siren_file }}">
+            </div>
+            <div class="form-row">
+                <button type="button" id="test-siren-btn">Test Siren</button>
+            </div>
+
+            <hr>
+
+            <h3>Telegram</h3>
+            <div class="form-row">
+                <label><input type="checkbox" name="telegram_enabled" {% if settings.telegram_enabled %}checked{% endif %}> Telegram Enabled</label>
+            </div>
+            <div class="form-row">
+                <label>Telegram Bot Token</label>
+                <input type="text" name="telegram_bot_token" value="{{ settings.telegram_bot_token }}">
+            </div>
+            <div class="form-row">
+                <label>Telegram Chat ID</label>
+                <input type="text" name="telegram_chat_id" value="{{ settings.telegram_chat_id }}">
+            </div>
+
+            <hr>
+
+            <h3>Email</h3>
+            <div class="form-row">
+                <label><input type="checkbox" name="email_enabled" {% if settings.email_enabled %}checked{% endif %}> Email Enabled</label>
+            </div>
+            <div class="form-row">
+                <label>SMTP Host</label>
+                <input type="text" name="smtp_host" value="{{ settings.smtp_host }}">
+            </div>
+            <div class="form-row">
+                <label>SMTP Port</label>
+                <input type="number" name="smtp_port" value="{{ settings.smtp_port }}">
+            </div>
+            <div class="form-row">
+                <label>SMTP Username</label>
+                <input type="text" name="smtp_username" value="{{ settings.smtp_username }}">
+            </div>
+            <div class="form-row">
+                <label>SMTP Password</label>
+                <input type="password" name="smtp_password" value="{{ settings.smtp_password }}">
+            </div>
+            <div class="form-row">
+                <label>Email To</label>
+                <input type="text" name="email_to" value="{{ settings.email_to }}">
+            </div>
+
+            <hr>
+
+            <h3>Threat Enrichment</h3>
+            <div class="form-row">
+                <label><input type="checkbox" name="abuseipdb_enabled" {% if settings.abuseipdb_enabled %}checked{% endif %}> AbuseIPDB Enabled</label>
+            </div>
+            <div class="form-row">
+                <label>AbuseIPDB API Key</label>
+                <input type="text" name="abuseipdb_api_key" value="{{ settings.abuseipdb_api_key }}">
+            </div>
+
+            <div class="form-row">
+                <label><input type="checkbox" name="virustotal_enabled" {% if settings.virustotal_enabled %}checked{% endif %}> VirusTotal Ready</label>
+            </div>
+            <div class="form-row">
+                <label>VirusTotal API Key</label>
+                <input type="text" name="virustotal_api_key" value="{{ settings.virustotal_api_key }}">
+            </div>
+
+            <div class="form-row">
+                <label><input type="checkbox" name="otx_enabled" {% if settings.otx_enabled %}checked{% endif %}> AlienVault OTX Ready</label>
+            </div>
+            <div class="form-row">
+                <label>OTX API Key</label>
+                <input type="text" name="otx_api_key" value="{{ settings.otx_api_key }}">
+            </div>
+
+            <div class="form-row">
+                <button type="submit">Save All Settings</button>
+            </div>
+        </form>
+
+        <form method="POST" action="/test_telegram">
+            <button type="submit">Send Telegram Test Message</button>
+        </form>
+
+        <br>
+
+        <form method="POST" action="/test_email">
+            <button type="submit">Send Email Test Message</button>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const btn = document.getElementById("test-siren-btn");
+
+    if (btn) {
+        btn.addEventListener("click", async function () {
+            try {
+                const res = await fetch("/test_siren", { method: "POST" });
+                const data = await res.json();
+
+                const audio = new Audio(`/static/sounds/${data.file}`);
+                audio.play().catch(() => {
+                    alert("Browser blocked autoplay. Click page once and try again.");
+                });
+
+                setTimeout(() => {
+                    audio.pause();
+                    audio.currentTime = 0;
+                }, (data.seconds || 5) * 1000);
+            } catch (e) {
+                alert("Siren test failed.");
+            }
+        });
+    }
+});
+</script>
+
+</body>
+</html>

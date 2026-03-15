@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SentinelSOC - Alert Details</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body data-theme="{{ settings.theme }}">
+
+<div class="sidebar">
+    <h2>SentinelSOC Pro</h2>
+    <p class="credit">Built by Nowfir</p>
+    <ul>
+        <li><a href="/">Dashboard</a></li>
+        <li><a href="/alerts">Alerts</a></li>
+        <li><a href="/incidents">Incidents</a></li>
+        <li><a href="/threat">Threat Intel</a></li>
+        <li><a href="/reports">Reports</a></li>
+        <li><a href="/settings">Settings</a></li>
+    </ul>
+</div>
+
+<div class="main">
+    <h1>Alert Details</h1>
+
+    <div class="card">
+        <div class="detail-grid">
+            <div class="detail-item"><strong>IP</strong><span>{{ alert.source_ip }}</span></div>
+            <div class="detail-item"><strong>Type</strong><span>{{ alert.alert_type }}</span></div>
+            <div class="detail-item"><strong>Attempts</strong><span>{{ alert.failed_attempts }}</span></div>
+            <div class="detail-item"><strong>Severity</strong><span>{{ alert.severity }}</span></div>
+            <div class="detail-item"><strong>Country</strong><span>{{ alert.country }}</span></div>
+            <div class="detail-item"><strong>City</strong><span>{{ alert.city }}</span></div>
+            <div class="detail-item"><strong>ISP</strong><span>{{ alert.isp }}</span></div>
+            <div class="detail-item"><strong>IP Type</strong><span>{{ alert.ip_type }}</span></div>
+            <div class="detail-item"><strong>Anomaly Score</strong><span>{{ alert.anomaly_score }}</span></div>
+            <div class="detail-item"><strong>Anomaly Level</strong><span>{{ alert.anomaly_level }}</span></div>
+            <div class="detail-item"><strong>Disposition</strong><span>{{ alert.disposition }}</span></div>
+            <div class="detail-item"><strong>Status</strong><span>{{ alert.status }}</span></div>
+            <div class="detail-item"><strong>MITRE ID</strong><span>{{ alert.mitre_technique_id }}</span></div>
+            <div class="detail-item"><strong>MITRE Technique</strong><span>{{ alert.mitre_technique_name }}</span></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Detection Summary</h3>
+        <ul class="list-plain">
+            {% for item in alert.summary %}
+            <li>{{ item }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <div class="card">
+        <h3>Anomaly Reasons</h3>
+        {% if alert.anomaly_reasons %}
+            <ul class="list-plain">
+                {% for reason in alert.anomaly_reasons %}
+                <li>{{ reason }}</li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No anomaly reasons available.</p>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h3>Analyst Action</h3>
+        <form method="POST" action="/alert_action">
+            <input type="hidden" name="alert_id" value="{{ alert.id }}">
+            <p><button name="action" value="TRUE_POSITIVE" type="submit">Mark True Positive</button></p>
+            <p><button name="action" value="FALSE_POSITIVE" type="submit">Mark False Positive</button></p>
+            <p><button name="action" value="ESCALATED" type="submit">Mark Escalated</button></p>
+            <p><button name="action" value="UNREVIEWED" type="submit">Reset Review State</button></p>
+        </form>
+    </div>
+
+    <div class="card">
+        <h3>Add Analyst Note</h3>
+        <form method="POST" action="/alert_note">
+            <input type="hidden" name="alert_id" value="{{ alert.id }}">
+            <div class="form-row">
+                <textarea name="note" placeholder="Write analyst note here..." required></textarea>
+            </div>
+            <button type="submit">Save Note</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h3>Alert Notes</h3>
+        {% if alert.notes %}
+            {% for note in alert.notes %}
+                <div class="note-box">
+                    <div>{{ note.text }}</div>
+                    <div class="note-time">{{ note.created_at }}</div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>No analyst notes yet.</p>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h3>Escalate to Incident</h3>
+        <form method="POST" action="/escalate_alert_to_incident">
+            <input type="hidden" name="alert_id" value="{{ alert.id }}">
+            <button type="submit">Create Incident From This Alert</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h3>Raw Log Viewer</h3>
+        {% if raw_logs %}
+            <pre class="raw-log-box">{% for line in raw_logs %}{{ line }}
+{% endfor %}</pre>
+        {% else %}
+            <p>No raw log lines found for this IP.</p>
+        {% endif %}
+    </div>
+</div>
+
+</body>
+</html>

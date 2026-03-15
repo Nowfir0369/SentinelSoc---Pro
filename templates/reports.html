@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SentinelSOC - Reports</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body data-theme="{{ settings.theme }}">
+
+<div class="sidebar">
+    <h2>SentinelSOC Pro</h2>
+    <p class="credit">Built by Nowfir</p>
+    <ul>
+        <li><a href="/">Dashboard</a></li>
+        <li><a href="/alerts">Alerts</a></li>
+        <li><a href="/incidents">Incidents</a></li>
+        <li><a href="/threat">Threat Intel</a></li>
+        <li><a href="/reports">Reports</a></li>
+        <li><a href="/settings">Settings</a></li>
+    </ul>
+</div>
+
+<div class="main">
+    <h1>Reports & Summary</h1>
+
+    <div class="cards">
+        <div class="card">
+            <h3>Total Alerts</h3>
+            <p>{{ report.total_alerts }}</p>
+        </div>
+
+        <div class="card">
+            <h3>Top Attacker</h3>
+            <p style="font-size:18px;">{{ report.top_attacker }}</p>
+        </div>
+
+        <div class="card">
+            <h3>Last Scan</h3>
+            <p style="font-size:18px;">{{ report.last_scan }}</p>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Severity Breakdown</h3>
+        <div class="detail-grid">
+            <div class="detail-item"><strong>LOW</strong><span>{{ severity_breakdown.LOW }}</span></div>
+            <div class="detail-item"><strong>MEDIUM</strong><span>{{ severity_breakdown.MEDIUM }}</span></div>
+            <div class="detail-item"><strong>HIGH</strong><span>{{ severity_breakdown.HIGH }}</span></div>
+            <div class="detail-item"><strong>CRITICAL</strong><span>{{ severity_breakdown.CRITICAL }}</span></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Export</h3>
+        <a href="/export/json"><button>Download JSON Report</button></a>
+        <a href="/export/csv"><button>Download CSV Report</button></a>
+    </div>
+
+    <div class="card">
+        <h3>Analyst Summary</h3>
+        <ul class="list-plain">
+            <li>Total monitored alerts: {{ report.total_alerts }}</li>
+            <li>Top attacking IP observed: {{ report.top_attacker }}</li>
+            <li>Last completed scan: {{ report.last_scan }}</li>
+            <li>Use Alerts, Threat Intel, and Incidents pages for deeper workflow analysis.</li>
+        </ul>
+    </div>
+</div>
+
+</body>
+</html>

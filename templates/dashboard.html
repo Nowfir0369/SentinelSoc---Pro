@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SentinelSOC Pro</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body data-theme="{{ settings.theme }}">
+
+<div id="intro">
+    <div class="logo-box">
+        <div class="shield-logo">
+            <svg viewBox="0 0 200 220" class="shield-svg" xmlns="http://www.w3.org/2000/svg">
+                <path d="M100 10 L170 40 L170 105 C170 155, 140 190, 100 210 C60 190, 30 155, 30 105 L30 40 Z" class="shield-shape"/>
+                <path d="M45 112 L68 112 L80 92 L94 136 L108 78 L122 112 L155 112" class="ecg-line"/>
+            </svg>
+        </div>
+        <h1>SentinelSOC Pro</h1>
+        <p>Built by Nowfir</p>
+        <div class="loading-bar"><div class="loading-fill"></div></div>
+    </div>
+</div>
+
+<div id="dashboard-content" class="hidden">
+    <div class="sidebar">
+        <h2>SentinelSOC Pro</h2>
+        <p class="credit">Built by Nowfir</p>
+        <ul>
+            <li><a href="/">Dashboard</a></li>
+            <li><a href="/events">Events</a></li>
+            <li><a href="/campaigns">Campaigns</a></li>
+            <li><a href="/watchlist">Watchlist</a></li>
+            <li><a href="/alerts">Alerts</a></li>
+            <li><a href="/incidents">Incidents</a></li>
+            <li><a href="/threat">Threat Intel</a></li>
+            <li><a href="/reports">Reports</a></li>
+            <li><a href="/settings">Settings</a></li>
+        </ul>
+    </div>
+
+    <div class="main">
+        <h1>SOC Dashboard</h1>
+        <p class="subtitle">
+            Auto Refresh: <span id="refresh-status">{{ "ON" if settings.auto_refresh_enabled else "OFF" }}</span> |
+            Last Scan: <span id="last-scan">{{ last_scan }}</span>
+        </p>
+
+        <div class="ticker-wrap">
+            <div class="ticker-content" id="live-alert-ticker">
+                SentinelSOC Live Feed Active • Multi-log monitoring enabled • Correlation engine enabled...
+            </div>
+        </div>
+
+        <div class="quick-actions">
+            <a href="/events"><button>Open Events</button></a>
+            <a href="/campaigns"><button>Open Campaigns</button></a>
+            <a href="/watchlist"><button>Open Watchlist</button></a>
+            <a href="/alerts"><button>Open Alerts</button></a>
+            <a href="/incidents"><button>Open Incidents</button></a>
+        </div>
+
+        <div class="cards">
+            <div class="card">
+                <h3>Total Alerts</h3>
+                <p id="total-alerts">{{ total_alerts }}</p>
+            </div>
+            <div class="card">
+                <h3>Critical Alerts</h3>
+                <p id="critical-count">{{ critical_count }}</p>
+            </div>
+            <div class="card">
+                <h3>Open Incidents</h3>
+                <p id="incident-count">{{ incident_count }}</p>
+            </div>
+            <div class="card">
+                <h3>Top Attacker IP</h3>
+                <p id="top-attacker" style="font-size:18px">{{ top_attacker }}</p>
+            </div>
+        </div>
+
+        <div class="dashboard-grid-2">
+            <div class="card">
+                <h3>Global Attack Map</h3>
+                <div id="attack-map"></div>
+            </div>
+
+            <div class="card">
+                <h3>Unified Event Stream</h3>
+                <div id="recent-events-feed">
+                    {% if recent_events %}
+                        {% for item in recent_events %}
+                        <div class="feed-item">
+                            <div><strong>{{ item.source_ip }}</strong></div>
+                            <div>{{ item.event_type }}</div>
+                            <div>{{ item.source }} | {{ item.service }}</div>
+                            <div><span class="badge badge-{{ item.severity|lower }}">{{ item.severity }}</span></div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p>No recent events.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-grid-2">
+            <div class="card">
+                <h3>Correlated Campaign Feed</h3>
+                <div id="recent-campaigns-feed">
+                    {% if recent_campaigns %}
+                        {% for item in recent_campaigns %}
+                        <div class="feed-item">
+                            <div><strong>{{ item.source_ip }}</strong></div>
+                            <div>{{ item.campaign_level }} | Score {{ item.correlation_score }}</div>
+                            <div>{{ item.event_count }} events | {{ item.sources|join(', ') }}</div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p>No correlated campaigns.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Recent Alerts Feed</h3>
+                <div id="recent-alerts-feed">
+                    {% if recent_alerts %}
+                        {% for item in recent_alerts %}
+                        <div class="feed-item">
+                            <div><strong>{{ item.ip }}</strong></div>
+                            <div>{{ item.type }}</div>
+                            <div>{{ item.country }} | {{ item.attempts }} attempts</div>
+                            <div><span class="badge badge-{{ item.severity|lower }}">{{ item.severity }}</span></div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p>No recent alerts.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-grid-2">
+            <div class="card">
+                <h3>Top Attackers</h3>
+                <div id="top-attackers-list">
+                    {% if top_attackers %}
+                        {% for item in top_attackers %}
+                        <div class="feed-item">
+                            <div><strong>{{ item.ip }}</strong></div>
+                            <div>{{ item.country }}</div>
+                            <div>{{ item.attempts }} attempts</div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p>No attacker data.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Top Countries</h3>
+                <div id="top-countries-list">
+                    {% if top_countries %}
+                        {% for item in top_countries %}
+                        <div class="feed-item">
+                            <div><strong>{{ item.country }}</strong></div>
+                            <div>{{ item.count }} alert(s)</div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p>No country data.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-grid-2">
+            <div class="card">
+                <h3>SOC Attack Timeline</h3>
+                <div class="chart-box">
+                    <canvas id="timelineChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Alert Severity Chart</h3>
+                <div class="chart-box">
+                    <canvas id="severityChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+window.SENTINEL_SETTINGS = {
+    auto_refresh_enabled: {{ "true" if settings.auto_refresh_enabled else "false" }},
+    refresh_seconds: {{ settings.refresh_seconds }},
+    theme: "{{ settings.theme }}",
+    siren_enabled: {{ "true" if settings.siren_enabled else "false" }},
+    siren_seconds: {{ settings.siren_seconds }},
+    custom_siren_file: "{{ settings.custom_siren_file }}"
+};
+
+window.SENTINEL_INITIAL = {
+    critical_count: {{ critical_count }},
+    high_count: {{ high_count }},
+    medium_count: {{ medium_count }},
+    low_count: {{ low_count }}
+};
+</script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const intro = document.getElementById("intro");
+    const content = document.getElementById("dashboard-content");
+    const seen = sessionStorage.getItem("sentinelsoc_intro_seen");
+
+    if (seen === "yes") {
+        intro.style.display = "none";
+        content.classList.remove("hidden");
+        document.body.style.overflow = "auto";
+    } else {
+        setTimeout(function () {
+            intro.style.display = "none";
+            content.classList.remove("hidden");
+            content.classList.add("fade-in");
+            document.body.style.overflow = "auto";
+            sessionStorage.setItem("sentinelsoc_intro_seen", "yes");
+        }, 2500);
+    }
+});
+</script>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+
+</body>
+</html>

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SentinelSOC - Incidents</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body data-theme="{{ settings.theme }}">
+
+<div class="sidebar">
+    <h2>SentinelSOC Pro</h2>
+    <p class="credit">Built by Nowfir</p>
+    <ul>
+        <li><a href="/">Dashboard</a></li>
+        <li><a href="/events">Events</a></li>
+        <li><a href="/campaigns">Campaigns</a></li>
+        <li><a href="/watchlist">Watchlist</a></li>
+        <li><a href="/alerts">Alerts</a></li>
+        <li><a href="/incidents">Incidents</a></li>
+        <li><a href="/threat">Threat Intel</a></li>
+        <li><a href="/reports">Reports</a></li>
+        <li><a href="/settings">Settings</a></li>
+    </ul>
+</div>
+
+<div class="main">
+    <h1>Incident Management</h1>
+
+    <div class="card">
+        <h3>Create Incident</h3>
+        <form method="POST" action="/incidents">
+            <div class="form-row">
+                <input type="text" name="title" placeholder="Incident title" required>
+            </div>
+
+            <div class="form-row">
+                <select name="severity">
+                    <option value="LOW">LOW</option>
+                    <option value="MEDIUM">MEDIUM</option>
+                    <option value="HIGH">HIGH</option>
+                    <option value="CRITICAL">CRITICAL</option>
+                </select>
+            </div>
+
+            <div class="form-row">
+                <select name="status">
+                    <option value="Open">Open</option>
+                    <option value="Investigating">Investigating</option>
+                    <option value="Contained">Contained</option>
+                    <option value="Closed">Closed</option>
+                </select>
+            </div>
+
+            <div class="form-row">
+                <input type="text" name="owner" placeholder="Incident owner / assignee">
+            </div>
+
+            <div class="form-row">
+                <textarea name="note" placeholder="Initial analyst note"></textarea>
+            </div>
+
+            <button type="submit">Create Incident</button>
+        </form>
+    </div>
+
+    {% if incidents %}
+        {% for incident in incidents %}
+        <div class="card">
+            <h3>{{ incident.title }}</h3>
+
+            <div class="detail-grid">
+                <div class="detail-item">
+                    <strong>ID</strong>
+                    <span>{{ incident.id }}</span>
+                </div>
+
+                <div class="detail-item">
+                    <strong>Severity</strong>
+                    <span>{{ incident.severity }}</span>
+                </div>
+
+                <div class="detail-item">
+                    <strong>Priority</strong>
+                    <span>{{ incident.priority }}</span>
+                </div>
+
+                <div class="detail-item">
+                    <strong>Status</strong>
+                    <span>{{ incident.status }}</span>
+                </div>
+
+                <div class="detail-item">
+                    <strong>Owner</strong>
+                    <span>{{ incident.owner or "Unassigned" }}</span>
+                </div>
+
+                <div class="detail-item">
+                    <strong>Created</strong>
+                    <span>{{ incident.created_at }}</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Update Incident</h3>
+                <form method="POST" action="/incident_action">
+                    <input type="hidden" name="incident_id" value="{{ incident.id }}">
+
+                    <div class="form-row">
+                        <select name="new_status">
+                            <option value="">Change status</option>
+                            <option value="Open">Open</option>
+                            <option value="Investigating">Investigating</option>
+                            <option value="Contained">Contained</option>
+                            <option value="Closed">Closed</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <select name="priority">
+                            <option value="">Change priority</option>
+                            <option value="LOW">LOW</option>
+                            <option value="MEDIUM">MEDIUM</option>
+                            <option value="HIGH">HIGH</option>
+                            <option value="CRITICAL">CRITICAL</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <input type="text" name="owner" value="{{ incident.owner }}" placeholder="Owner / assignee">
+                    </div>
+
+                    <div class="form-row">
+                        <textarea name="investigation_summary" placeholder="Investigation summary">{{ incident.investigation_summary }}</textarea>
+                    </div>
+
+                    <div class="form-row">
+                        <textarea name="closure_note" placeholder="Closure note">{{ incident.closure_note }}</textarea>
+                    </div>
+
+                    <div class="form-row">
+                        <textarea name="new_note" placeholder="Add analyst note"></textarea>
+                    </div>
+
+                    <button type="submit">Update Incident</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <h3>Investigation Summary</h3>
+                {% if incident.investigation_summary %}
+                    <div class="note-box">{{ incident.investigation_summary }}</div>
+                {% else %}
+                    <p>No investigation summary yet.</p>
+                {% endif %}
+            </div>
+
+            <div class="card">
+                <h3>Closure Note</h3>
+                {% if incident.closure_note %}
+                    <div class="note-box">{{ incident.closure_note }}</div>
+                {% else %}
+                    <p>No closure note yet.</p>
+                {% endif %}
+            </div>
+
+            <div class="card">
+                <h3>Notes</h3>
+                {% if incident.notes %}
+                    {% for note in incident.notes %}
+                        <div class="note-box">{{ note }}</div>
+                    {% endfor %}
+                {% else %}
+                    <p>No notes available.</p>
+                {% endif %}
+            </div>
+
+            <div class="card">
+                <h3>Timeline</h3>
+                {% if incident.timeline %}
+                    <ul class="list-plain">
+                        {% for item in incident.timeline %}
+                            <li>{{ item }}</li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p>No timeline entries.</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="card">
+            <p>No incidents created yet.</p>
+        </div>
+    {% endif %}
+</div>
+
+</body>
+</html>

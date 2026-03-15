@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SentinelSOC - Campaign Correlation</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body data-theme="{{ settings.theme }}">
+
+<div class="sidebar">
+    <h2>SentinelSOC Pro</h2>
+    <p class="credit">Built by Nowfir</p>
+    <ul>
+        <li><a href="/">Dashboard</a></li>
+        <li><a href="/events">Events</a></li>
+        <li><a href="/campaigns">Campaigns</a></li>
+        <li><a href="/watchlist">Watchlist</a></li>
+        <li><a href="/alerts">Alerts</a></li>
+        <li><a href="/incidents">Incidents</a></li>
+        <li><a href="/threat">Threat Intel</a></li>
+        <li><a href="/reports">Reports</a></li>
+        <li><a href="/settings">Settings</a></li>
+    </ul>
+</div>
+
+<div class="main">
+    <h1>Correlated Attack Campaigns</h1>
+
+    <div class="card">
+        <form method="GET" action="/campaigns">
+            <div class="form-row">
+                <input type="text" name="q" value="{{ q }}" placeholder="Search IP, sources, event types">
+            </div>
+
+            <div class="form-row">
+                <select name="level">
+                    <option value="">All Campaign Levels</option>
+                    <option value="MEDIUM" {% if level == "MEDIUM" %}selected{% endif %}>MEDIUM</option>
+                    <option value="HIGH" {% if level == "HIGH" %}selected{% endif %}>HIGH</option>
+                    <option value="CRITICAL" {% if level == "CRITICAL" %}selected{% endif %}>CRITICAL</option>
+                </select>
+            </div>
+
+            <button type="submit">Apply Filters</button>
+        </form>
+    </div>
+
+    {% if campaigns %}
+        {% for item in campaigns %}
+        <div class="card">
+            <h3>{{ item.source_ip }}</h3>
+
+            <div class="detail-grid">
+                <div class="detail-item"><strong>Campaign Level</strong><span>{{ item.campaign_level }}</span></div>
+                <div class="detail-item"><strong>Correlation Score</strong><span>{{ item.correlation_score }}</span></div>
+                <div class="detail-item"><strong>Event Count</strong><span>{{ item.event_count }}</span></div>
+                <div class="detail-item"><strong>Highest Severity</strong><span>{{ item.highest_severity }}</span></div>
+            </div>
+
+            <div class="card">
+                <h3>Sources</h3>
+                <ul class="list-plain">
+                    {% for src in item.sources %}
+                    <li>{{ src }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            <div class="card">
+                <h3>Event Types</h3>
+                <ul class="list-plain">
+                    {% for ev in item.event_types %}
+                    <li>{{ ev }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            <div class="card">
+                <h3>Correlation Reasons</h3>
+                <ul class="list-plain">
+                    {% for reason in item.reasons %}
+                    <li>{{ reason }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            <div class="card">
+                <h3>Attack Chain Timeline</h3>
+                <ul class="list-plain">
+                    {% for step in item.timeline %}
+                    <li>{{ step }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="card">
+            <p>No correlated campaigns detected.</p>
+        </div>
+    {% endif %}
+</div>
+
+</body>
+</html>

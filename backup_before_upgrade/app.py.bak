@@ -1,0 +1,716 @@
+from flask import Flask, render_template, request, redirect, send_file, jsonify
+import json
+import os
+import re
+import csv
+import io
+import ipaddress
+import threading
+import webbrowser
+from datetime import datetime
+import requests
+
+try:
+    from watchdog.observers import Observer
+    from watchdog.events import FileSystemEventHandler
+    WATCHDOG_AVAILABLE = True
+except:
+    WATCHDOG_AVAILABLE = False
+
+app = Flask(__name__)
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+LOG_FILE = os.path.join(BASE_DIR, "logs", "auth.log")
+ALERT_FILE = os.path.join(BASE_DIR, "alerts", "alerts.json")
+INCIDENT_FILE = os.path.join(BASE_DIR, "alerts", "incidents.json")
+SETTINGS_FILE = os.path.join(BASE_DIR, "alerts", "settings.json")
+GEO_CACHE_FILE = os.path.join(BASE_DIR, "alerts", "geo_cache.json")
+ALERT_STATE_FILE = os.path.join(BASE_DIR, "alerts", "alert_state.json")
+
+observer = None
+
+
+def ensure_files():
+    os.makedirs(os.path.join(BASE_DIR, "logs"), exist_ok=True)
+    os.makedirs(os.path.join(BASE_DIR, "alerts"), exist_ok=True)
+    os.makedirs(os.path.join(BASE_DIR, "static"), exist_ok=True)
+    os.makedirs(os.path.join(BASE_DIR, "templates"), exist_ok=True)
+
+    defaults = {
+        ALERT_FILE: {"total_alerts": 0, "top_attacker": "None", "alerts": [], "last_scan": "N/A"},
+        INCIDENT_FILE: [],
+        GEO_CACHE_FILE: {},
+        ALERT_STATE_FILE: {},
+        SETTINGS_FILE: {
+            "auto_refresh_enabled": True,
+            "refresh_seconds": 5,
+            "theme": "dark",
+            "auto_open_browser": True,
+            "telegram_enabled": False,
+            "telegram_bot_token": "",
+            "telegram_chat_id": "",
+            "email_enabled": False,
+            "smtp_host": "",
+            "smtp_port": 587,
+            "smtp_username": "",
+            "smtp_password": "",
+            "email_to": "",
+            "siren_enabled": True,
+            "siren_seconds": 5,
+            "custom_siren_file": "default_alarm.mp3"
+        }
+    }
+
+    if not os.path.exists(LOG_FILE):
+        with open(LOG_FILE, "w") as f:
+            f.write("")
+
+    for path, default in defaults.items():
+        if not os.path.exists(path):
+            with open(path, "w") as f:
+                json.dump(default, f, indent=4)
+
+
+def load_json(path, default):
+    try:
+        with open(path, "r") as f:
+            return json.load(f)
+    except:
+        return default
+
+
+def save_json(path, data):
+    with open(path, "w") as f:
+        json.dump(data, f, indent=4)
+
+
+def load_alerts():
+    return load_json(ALERT_FILE, {"total_alerts": 0, "top_attacker": "None", "alerts": [], "last_scan": "N/A"})
+
+
+def load_incidents():
+    return load_json(INCIDENT_FILE, [])
+
+
+def load_settings():
+    return load_json(SETTINGS_FILE, {
+        "auto_refresh_enabled": True,
+        "refresh_seconds": 5,
+        "theme": "dark",
+        "auto_open_browser": True,
+        "telegram_enabled": False,
+        "telegram_bot_token": "",
+        "telegram_chat_id": "",
+        "email_enabled": False,
+        "smtp_host": "",
+        "smtp_port": 587,
+        "smtp_username": "",
+        "smtp_password": "",
+        "email_to": "",
+        "siren_enabled": True,
+        "siren_seconds": 5,
+        "custom_siren_file": "default_alarm.mp3"
+    })
+
+
+def load_geo_cache():
+    return load_json(GEO_CACHE_FILE, {})
+
+
+def load_alert_state():
+    return load_json(ALERT_STATE_FILE, {})
+
+
+def validate_settings(data):
+    try:
+        refresh_seconds = int(data.get("refresh_seconds", 5))
+    except:
+        refresh_seconds = 5
+
+    if refresh_seconds < 2:
+        refresh_seconds = 2
+    if refresh_seconds > 300:
+        refresh_seconds = 300
+
+    try:
+        smtp_port = int(data.get("smtp_port", 587))
+    except:
+        smtp_port = 587
+
+    try:
+        siren_seconds = int(data.get("siren_seconds", 5))
+    except:
+        siren_seconds = 5
+
+    if siren_seconds < 1:
+        siren_seconds = 1
+    if siren_seconds > 30:
+        siren_seconds = 30
+
+    return {
+        "auto_refresh_enabled": bool(data.get("auto_refresh_enabled", True)),
+        "refresh_seconds": refresh_seconds,
+        "theme": data.get("theme", "dark") if data.get("theme", "dark") in ["dark", "light"] else "dark",
+        "auto_open_browser": bool(data.get("auto_open_browser", True)),
+        "telegram_enabled": bool(data.get("telegram_enabled", False)),
+        "telegram_bot_token": str(data.get("telegram_bot_token", "")).strip(),
+        "telegram_chat_id": str(data.get("telegram_chat_id", "")).strip(),
+        "email_enabled": bool(data.get("email_enabled", False)),
+        "smtp_host": str(data.get("smtp_host", "")).strip(),
+        "smtp_port": smtp_port,
+        "smtp_username": str(data.get("smtp_username", "")).strip(),
+        "smtp_password": str(data.get("smtp_password", "")).strip(),
+        "email_to": str(data.get("email_to", "")).strip(),
+        "siren_enabled": bool(data.get("siren_enabled", True)),
+        "siren_seconds": siren_seconds,
+        "custom_siren_file": str(data.get("custom_siren_file", "default_alarm.mp3")).strip() or "default_alarm.mp3"
+    }
+
+
+def get_ip_geo(ip):
+    cache = load_geo_cache()
+    if ip in cache:
+        return cache[ip]
+
+    try:
+        ip_obj = ipaddress.ip_address(ip)
+        if ip_obj.is_private:
+            data = {
+                "country": "Internal Network",
+                "city": "Local",
+                "lat": None,
+                "lon": None,
+                "isp": "Private IP",
+                "ip_type": "Private/Internal"
+            }
+            cache[ip] = data
+            save_json(GEO_CACHE_FILE, cache)
+            return data
+    except:
+        pass
+
+    try:
+        res = requests.get(f"http://ip-api.com/json/{ip}", timeout=5)
+        data = res.json()
+
+        if data.get("status") == "success":
+            result = {
+                "country": data.get("country", "Unknown"),
+                "city": data.get("city", "Unknown"),
+                "lat": data.get("lat"),
+                "lon": data.get("lon"),
+                "isp": data.get("isp", "Unknown"),
+                "ip_type": "Public/External"
+            }
+        else:
+            result = {
+                "country": "Unknown",
+                "city": "Unknown",
+                "lat": None,
+                "lon": None,
+                "isp": "Unknown",
+                "ip_type": "Unknown"
+            }
+    except:
+        result = {
+            "country": "Unknown",
+            "city": "Unknown",
+            "lat": None,
+            "lon": None,
+            "isp": "Unknown",
+            "ip_type": "Unknown"
+        }
+
+    cache[ip] = result
+    save_json(GEO_CACHE_FILE, cache)
+    return result
+
+
+def classify_severity(count):
+    if count >= 10:
+        return "CRITICAL"
+    elif count >= 5:
+        return "HIGH"
+    elif count >= 3:
+        return "MEDIUM"
+    return "LOW"
+
+
+def anomaly_engine(ip, count, geo):
+    score = 0
+    reasons = []
+
+    if count >= 10:
+        score += 45
+        reasons.append("High failed-login burst")
+    elif count >= 5:
+        score += 25
+        reasons.append("Repeated failed logins")
+    elif count >= 3:
+        score += 10
+        reasons.append("Failed-login pattern observed")
+
+    if geo.get("ip_type") == "Public/External":
+        score += 15
+        reasons.append("External source IP")
+
+    country = geo.get("country", "Unknown")
+    if country not in ["Internal Network", "Unknown", "India"]:
+        score += 20
+        reasons.append("Unexpected geolocation")
+
+    if count >= 15:
+        score += 20
+        reasons.append("Very high attack intensity")
+
+    if score >= 70:
+        level = "ANOMALOUS"
+    elif score >= 40:
+        level = "SUSPICIOUS"
+    else:
+        level = "NORMAL"
+
+    return score, level, reasons
+
+
+def get_matching_raw_logs(ip):
+    matches = []
+    try:
+        with open(LOG_FILE, "r") as f:
+            for line in f:
+                if ip in line:
+                    matches.append(line.strip())
+    except:
+        pass
+    return matches[-50:]
+
+
+def scan_logs():
+    pattern = r"Failed password.*from (\d+\.\d+\.\d+\.\d+)"
+    ip_counter = {}
+    alerts = []
+    alert_state = load_alert_state()
+
+    try:
+        with open(LOG_FILE, "r") as file:
+            for line in file:
+                match = re.search(pattern, line)
+                if match:
+                    ip = match.group(1)
+                    ip_counter[ip] = ip_counter.get(ip, 0) + 1
+    except:
+        pass
+
+    for ip, count in ip_counter.items():
+        if count < 3:
+            continue
+
+        geo = get_ip_geo(ip)
+        severity = classify_severity(count)
+        anomaly_score, anomaly_level, anomaly_reasons = anomaly_engine(ip, count, geo)
+        state = alert_state.get(ip, {})
+        disposition = state.get("disposition", "UNREVIEWED")
+
+        alerts.append({
+            "id": ip,
+            "source_ip": ip,
+            "alert_type": "Brute Force Login Attempt",
+            "failed_attempts": count,
+            "severity": severity,
+            "status": "Open",
+            "country": geo.get("country"),
+            "city": geo.get("city"),
+            "lat": geo.get("lat"),
+            "lon": geo.get("lon"),
+            "isp": geo.get("isp"),
+            "ip_type": geo.get("ip_type"),
+            "anomaly_score": anomaly_score,
+            "anomaly_level": anomaly_level,
+            "anomaly_reasons": anomaly_reasons,
+            "disposition": disposition
+        })
+
+    report = {
+        "total_alerts": len(alerts),
+        "top_attacker": max(ip_counter, key=ip_counter.get) if ip_counter else "None",
+        "alerts": alerts,
+        "last_scan": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+
+    save_json(ALERT_FILE, report)
+
+
+def build_threat_intel():
+    data = load_alerts()
+    intel = []
+
+    for alert in data.get("alerts", []):
+        severity = alert["severity"]
+
+        if severity == "CRITICAL":
+            threat_score = 90
+        elif severity == "HIGH":
+            threat_score = 75
+        elif severity == "MEDIUM":
+            threat_score = 55
+        else:
+            threat_score = 25
+
+        intel.append({
+            "ip": alert["source_ip"],
+            "ip_type": alert.get("ip_type", "Unknown"),
+            "country": alert.get("country", "Unknown"),
+            "city": alert.get("city", "Unknown"),
+            "isp": alert.get("isp", "Unknown"),
+            "attempts": alert["failed_attempts"],
+            "severity": alert["severity"],
+            "threat_score": threat_score,
+            "reputation": "Suspicious" if threat_score >= 55 else "Monitor",
+            "recommended_action": "Block IP and investigate authentication activity",
+            "anomaly_score": alert.get("anomaly_score", 0),
+            "anomaly_level": alert.get("anomaly_level", "NORMAL"),
+            "anomaly_reasons": alert.get("anomaly_reasons", [])
+        })
+
+    return intel
+
+
+def build_map_points():
+    data = load_alerts()
+    points = []
+
+    for alert in data.get("alerts", []):
+        lat = alert.get("lat")
+        lon = alert.get("lon")
+        if lat is None or lon is None:
+            continue
+
+        points.append({
+            "ip": alert["source_ip"],
+            "country": alert.get("country", "Unknown"),
+            "city": alert.get("city", "Unknown"),
+            "severity": alert["severity"],
+            "attempts": alert["failed_attempts"],
+            "lat": lat,
+            "lon": lon
+        })
+
+    return points
+
+
+def build_timeline():
+    data = load_alerts()
+    alerts = data.get("alerts", [])
+
+    low = len([a for a in alerts if a["severity"] == "LOW"])
+    medium = len([a for a in alerts if a["severity"] == "MEDIUM"])
+    high = len([a for a in alerts if a["severity"] == "HIGH"])
+    critical = len([a for a in alerts if a["severity"] == "CRITICAL"])
+
+    return {
+        "labels": ["Low", "Medium", "High", "Critical"],
+        "counts": [low, medium, high, critical]
+    }
+
+
+class LogChangeHandler(FileSystemEventHandler):
+    def on_modified(self, event):
+        if event.src_path.endswith("auth.log"):
+            scan_logs()
+
+
+def start_monitor():
+    global observer
+
+    if not WATCHDOG_AVAILABLE or observer is not None:
+        return
+
+    event_handler = LogChangeHandler()
+    observer = Observer()
+    observer.schedule(event_handler, path=os.path.join(BASE_DIR, "logs"), recursive=False)
+    observer.start()
+
+
+@app.route("/")
+def dashboard():
+    scan_logs()
+    data = load_alerts()
+    settings = load_settings()
+    alerts = data.get("alerts", [])
+    incidents = load_incidents()
+
+    critical_count = len([a for a in alerts if a["severity"] == "CRITICAL"])
+    high_count = len([a for a in alerts if a["severity"] == "HIGH"])
+    medium_count = len([a for a in alerts if a["severity"] == "MEDIUM"])
+
+    return render_template(
+        "dashboard.html",
+        total_alerts=data.get("total_alerts", 0),
+        top_attacker=data.get("top_attacker", "None"),
+        critical_count=critical_count,
+        high_count=high_count,
+        medium_count=medium_count,
+        incident_count=len(incidents),
+        last_scan=data.get("last_scan", "N/A"),
+        settings=settings
+    )
+
+
+@app.route("/api/dashboard")
+def api_dashboard():
+    scan_logs()
+    data = load_alerts()
+    alerts = data.get("alerts", [])
+    incidents = load_incidents()
+    settings = load_settings()
+
+    critical_count = len([a for a in alerts if a["severity"] == "CRITICAL"])
+    high_count = len([a for a in alerts if a["severity"] == "HIGH"])
+    medium_count = len([a for a in alerts if a["severity"] == "MEDIUM"])
+
+    return jsonify({
+        "total_alerts": data.get("total_alerts", 0),
+        "top_attacker": data.get("top_attacker", "None"),
+        "critical_count": critical_count,
+        "high_count": high_count,
+        "medium_count": medium_count,
+        "incident_count": len(incidents),
+        "last_scan": data.get("last_scan", "N/A"),
+        "auto_refresh_enabled": settings.get("auto_refresh_enabled", True),
+        "refresh_seconds": settings.get("refresh_seconds", 5),
+        "theme": settings.get("theme", "dark"),
+        "siren_enabled": settings.get("siren_enabled", True),
+        "siren_seconds": settings.get("siren_seconds", 5),
+        "custom_siren_file": settings.get("custom_siren_file", "default_alarm.mp3")
+    })
+
+
+@app.route("/api/map_points")
+def api_map_points():
+    scan_logs()
+    return jsonify(build_map_points())
+
+
+@app.route("/api/timeline")
+def api_timeline():
+    scan_logs()
+    return jsonify(build_timeline())
+
+
+@app.route("/alerts")
+def alerts():
+    scan_logs()
+    data = load_alerts()
+    settings = load_settings()
+    alerts_list = data.get("alerts", [])
+
+    q = request.args.get("q", "").strip().lower()
+    severity = request.args.get("severity", "").strip().upper()
+    disposition = request.args.get("disposition", "").strip().upper()
+
+    if q:
+        alerts_list = [
+            a for a in alerts_list
+            if q in a.get("source_ip", "").lower()
+            or q in a.get("alert_type", "").lower()
+            or q in a.get("country", "").lower()
+            or q in a.get("city", "").lower()
+        ]
+
+    if severity:
+        alerts_list = [a for a in alerts_list if a.get("severity", "") == severity]
+
+    if disposition:
+        alerts_list = [a for a in alerts_list if a.get("disposition", "") == disposition]
+
+    return render_template("alerts.html", alerts=alerts_list, settings=settings, q=q, severity=severity, disposition=disposition)
+
+
+@app.route("/alert/<alert_id>")
+def alert_detail(alert_id):
+    scan_logs()
+    data = load_alerts()
+    settings = load_settings()
+    alerts_list = data.get("alerts", [])
+    alert = next((a for a in alerts_list if a.get("id") == alert_id), None)
+
+    if not alert:
+        return "Alert not found", 404
+
+    raw_logs = get_matching_raw_logs(alert["source_ip"])
+    return render_template("alert_detail.html", alert=alert, raw_logs=raw_logs, settings=settings)
+
+
+@app.route("/alert_action", methods=["POST"])
+def alert_action():
+    alert_id = request.form.get("alert_id", "").strip()
+    action = request.form.get("action", "").strip().upper()
+
+    if alert_id and action in ["TRUE_POSITIVE", "FALSE_POSITIVE", "ESCALATED", "UNREVIEWED"]:
+        state = load_alert_state()
+        state.setdefault(alert_id, {})
+        state[alert_id]["disposition"] = action
+        state[alert_id]["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        save_json(ALERT_STATE_FILE, state)
+
+    return redirect(f"/alert/{alert_id}")
+
+
+@app.route("/incidents", methods=["GET", "POST"])
+def incidents():
+    settings = load_settings()
+
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        severity = request.form.get("severity", "LOW").strip()
+        status = request.form.get("status", "Open").strip()
+        note = request.form.get("note", "").strip()
+
+        if title:
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            incidents_data = load_incidents()
+            incidents_data.append({
+                "id": len(incidents_data) + 1,
+                "title": title,
+                "severity": severity,
+                "status": status,
+                "notes": [note] if note else [],
+                "created_at": now,
+                "timeline": [f"{now} - Incident created with status {status}"]
+            })
+            save_json(INCIDENT_FILE, incidents_data)
+
+        return redirect("/incidents")
+
+    incidents_data = load_incidents()
+    for inc in incidents_data:
+        if "timeline" not in inc:
+            inc["timeline"] = [f"{inc.get('created_at', 'Unknown time')} - Incident created"]
+
+    return render_template("incidents.html", incidents=incidents_data, settings=settings)
+
+
+@app.route("/incident_action", methods=["POST"])
+def incident_action():
+    incident_id = int(request.form.get("incident_id"))
+    new_status = request.form.get("new_status", "").strip()
+    new_note = request.form.get("new_note", "").strip()
+
+    incidents_data = load_incidents()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    for incident in incidents_data:
+        if incident["id"] == incident_id:
+            incident.setdefault("timeline", [])
+            if new_status:
+                incident["status"] = new_status
+                incident["timeline"].append(f"{now} - Status changed to {new_status}")
+            if new_note:
+                incident.setdefault("notes", [])
+                incident["notes"].append(new_note)
+                incident["timeline"].append(f"{now} - Analyst note added")
+
+    save_json(INCIDENT_FILE, incidents_data)
+    return redirect("/incidents")
+
+
+@app.route("/reports")
+def reports():
+    settings = load_settings()
+    return render_template("reports.html", report=load_alerts(), settings=settings)
+
+
+@app.route("/threat")
+def threat():
+    scan_logs()
+    settings = load_settings()
+    intel = build_threat_intel()
+    return render_template("threat.html", intel=intel, settings=settings)
+
+
+@app.route("/settings", methods=["GET", "POST"])
+def settings():
+    current = load_settings()
+
+    if request.method == "POST":
+        raw = {
+            "auto_refresh_enabled": True if request.form.get("auto_refresh_enabled") == "on" else False,
+            "refresh_seconds": request.form.get("refresh_seconds", "5"),
+            "theme": request.form.get("theme", "dark"),
+            "auto_open_browser": True if request.form.get("auto_open_browser") == "on" else False,
+            "telegram_enabled": True if request.form.get("telegram_enabled") == "on" else False,
+            "telegram_bot_token": request.form.get("telegram_bot_token", ""),
+            "telegram_chat_id": request.form.get("telegram_chat_id", ""),
+            "email_enabled": True if request.form.get("email_enabled") == "on" else False,
+            "smtp_host": request.form.get("smtp_host", ""),
+            "smtp_port": request.form.get("smtp_port", "587"),
+            "smtp_username": request.form.get("smtp_username", ""),
+            "smtp_password": request.form.get("smtp_password", ""),
+            "email_to": request.form.get("email_to", ""),
+            "siren_enabled": True if request.form.get("siren_enabled") == "on" else False,
+            "siren_seconds": request.form.get("siren_seconds", "5"),
+            "custom_siren_file": request.form.get("custom_siren_file", "default_alarm.mp3")
+        }
+
+        validated = validate_settings(raw)
+        save_json(SETTINGS_FILE, validated)
+        return redirect("/settings")
+
+    return render_template("settings.html", settings=current)
+
+
+@app.route("/export/json")
+def export_json():
+    return send_file(ALERT_FILE, as_attachment=True)
+
+
+@app.route("/export/csv")
+def export_csv():
+    data = load_alerts()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["IP", "Type", "Attempts", "Severity", "Country", "City", "Anomaly Score", "Anomaly Level", "Disposition", "Status"])
+
+    for alert in data.get("alerts", []):
+        writer.writerow([
+            alert.get("source_ip"),
+            alert.get("alert_type"),
+            alert.get("failed_attempts"),
+            alert.get("severity"),
+            alert.get("country"),
+            alert.get("city"),
+            alert.get("anomaly_score"),
+            alert.get("anomaly_level"),
+            alert.get("disposition"),
+            alert.get("status")
+        ])
+
+    mem = io.BytesIO()
+    mem.write(output.getvalue().encode("utf-8"))
+    mem.seek(0)
+    output.close()
+
+    return send_file(
+        mem,
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name="sentinelsoc_alerts.csv"
+    )
+
+
+def open_browser():
+    settings = load_settings()
+    if settings.get("auto_open_browser", True):
+        threading.Timer(1.5, lambda: webbrowser.open("http://127.0.0.1:5000")).start()
+
+
+def start_app():
+    ensure_files()
+    scan_logs()
+    start_monitor()
+    open_browser()
+    app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)
+
+
+if __name__ == "__main__":
+    start_app()

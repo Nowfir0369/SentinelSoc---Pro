@@ -1,0 +1,188 @@
+let refreshTimer = null;
+let severityChart = null;
+let timelineChart = null;
+let attackMap = null;
+let attackMarkers = [];
+let previousCritical = null;
+
+function applyTheme(theme) {
+    document.body.setAttribute("data-theme", theme || "dark");
+}
+
+function buildSeverityChart(initial) {
+    const ctx = document.getElementById("severityChart");
+    if (!ctx || typeof Chart === "undefined") return;
+
+    severityChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels: ["Critical", "High", "Medium"],
+            datasets: [{
+                label: "Alert Count",
+                data: [initial.critical_count, initial.high_count, initial.medium_count]
+            }]
+        },
+        options: { responsive: true }
+    });
+
+    previousCritical = initial.critical_count;
+}
+
+async function buildTimelineChart() {
+    const ctx = document.getElementById("timelineChart");
+    if (!ctx || typeof Chart === "undefined") return;
+
+    try {
+        const res = await fetch("/api/timeline");
+        const data = await res.json();
+
+        timelineChart = new Chart(ctx, {
+            type: "line",
+            data: {
+                labels: data.labels,
+                datasets: [{
+                    label: "Severity Distribution",
+                    data: data.counts,
+                    tension: 0.3
+                }]
+            },
+            options: { responsive: true }
+        });
+    } catch (e) {
+        console.error("Timeline build failed:", e);
+    }
+}
+
+async function buildAttackMap() {
+    const mapDiv = document.getElementById("attack-map");
+    if (!mapDiv || typeof L === "undefined") return;
+
+    try {
+        attackMap = L.map("attack-map").setView([20, 0], 2);
+
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            maxZoom: 19,
+            attribution: "&copy; OpenStreetMap contributors"
+        }).addTo(attackMap);
+
+        await refreshMapPoints();
+    } catch (e) {
+        console.error("Map build failed:", e);
+    }
+}
+
+async function refreshMapPoints() {
+    if (!attackMap) return;
+
+    attackMarkers.forEach(marker => attackMap.removeLayer(marker));
+    attackMarkers = [];
+
+    try {
+        const res = await fetch("/api/map_points");
+        const points = await res.json();
+
+        points.forEach(point => {
+            const marker = L.marker([point.lat, point.lon]).addTo(attackMap);
+            marker.bindPopup(
+                `<strong>${point.ip}</strong><br>${point.city}, ${point.country}<br>Severity: ${point.severity}<br>Attempts: ${point.attempts}`
+            );
+            attackMarkers.push(marker);
+        });
+    } catch (e) {
+        console.error("Map refresh failed:", e);
+    }
+}
+
+function playSirenIfNeeded(currentCritical, settings) {
+    if (!settings || !settings.siren_enabled) return;
+
+    if (previousCritical === null) {
+        previousCritical = currentCritical;
+        return;
+    }
+
+    if (currentCritical > previousCritical) {
+        const file = settings.custom_siren_file || "default_alarm.mp3";
+        const seconds = settings.siren_seconds || 5;
+        const audio = new Audio(`/static/sounds/${file}`);
+        audio.play().catch(() => {});
+        setTimeout(() => {
+            audio.pause();
+            audio.currentTime = 0;
+        }, seconds * 1000);
+    }
+
+    previousCritical = currentCritical;
+}
+
+async function fetchDashboardData() {
+    try {
+        const res = await fetch("/api/dashboard");
+        const data = await res.json();
+
+        const totalEl = document.getElementById("total-alerts");
+        const criticalEl = document.getElementById("critical-count");
+        const incidentEl = document.getElementById("incident-count");
+        const attackerEl = document.getElementById("top-attacker");
+        const scanEl = document.getElementById("last-scan");
+        const refreshEl = document.getElementById("refresh-status");
+
+        if (totalEl) totalEl.textContent = data.total_alerts;
+        if (criticalEl) criticalEl.textContent = data.critical_count;
+        if (incidentEl) incidentEl.textContent = data.incident_count;
+        if (attackerEl) attackerEl.textContent = data.top_attacker;
+        if (scanEl) scanEl.textContent = data.last_scan;
+        if (refreshEl) refreshEl.textContent = data.auto_refresh_enabled ? "ON" : "OFF";
+
+        applyTheme(data.theme);
+
+        if (severityChart) {
+            severityChart.data.datasets[0].data = [
+                data.critical_count,
+                data.high_count,
+                data.medium_count
+            ];
+            severityChart.update();
+        }
+
+        if (timelineChart) {
+            const tRes = await fetch("/api/timeline");
+            const timeline = await tRes.json();
+            timelineChart.data.labels = timeline.labels;
+            timelineChart.data.datasets[0].data = timeline.counts;
+            timelineChart.update();
+        }
+
+        await refreshMapPoints();
+        playSirenIfNeeded(data.critical_count, data);
+        startAutoRefresh(data.auto_refresh_enabled, data.refresh_seconds);
+    } catch (e) {
+        console.error("Dashboard refresh failed:", e);
+    }
+}
+
+function startAutoRefresh(enabled, seconds) {
+    if (refreshTimer) clearInterval(refreshTimer);
+    if (!enabled) return;
+    refreshTimer = setInterval(fetchDashboardData, seconds * 1000);
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+    if (window.SENTINEL_SETTINGS) {
+        applyTheme(window.SENTINEL_SETTINGS.theme);
+    }
+
+    if (window.SENTINEL_INITIAL) {
+        buildSeverityChart(window.SENTINEL_INITIAL);
+    }
+
+    await buildTimelineChart();
+    await buildAttackMap();
+
+    if (window.SENTINEL_SETTINGS) {
+        startAutoRefresh(
+            window.SENTINEL_SETTINGS.auto_refresh_enabled,
+            window.SENTINEL_SETTINGS.refresh_seconds
+        );
+    }
+});

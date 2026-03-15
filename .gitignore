@@ -1,0 +1,16 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+*.log
+alerts/*.json
+!alerts/.gitkeep
+database/
+instance/
+.idea/
+.vscode/
+.DS_Store
+*.swp
+*.swo

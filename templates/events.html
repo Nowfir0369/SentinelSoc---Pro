@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SentinelSOC - Events</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body data-theme="{{ settings.theme }}">
+
+<div class="sidebar">
+    <h2>SentinelSOC Pro</h2>
+    <p class="credit">Built by Nowfir</p>
+    <ul>
+        <li><a href="/">Dashboard</a></li>
+        <li><a href="/events">Events</a></li>
+        <li><a href="/campaigns">Campaigns</a></li>
+        <li><a href="/watchlist">Watchlist</a></li>
+        <li><a href="/alerts">Alerts</a></li>
+        <li><a href="/incidents">Incidents</a></li>
+        <li><a href="/threat">Threat Intel</a></li>
+        <li><a href="/reports">Reports</a></li>
+        <li><a href="/settings">Settings</a></li>
+    </ul>
+</div>
+
+<div class="main">
+    <h1>Unified Event Stream</h1>
+
+    <div class="card">
+        <form method="GET" action="/events">
+            <div class="form-row">
+                <input type="text" name="q" value="{{ q }}" placeholder="Search IP, event type, source, raw log">
+            </div>
+
+            <div class="form-row">
+                <select name="source">
+                    <option value="">All Sources</option>
+                    <option value="auth.log" {% if source == "auth.log" %}selected{% endif %}>auth.log</option>
+                    <option value="apache.log" {% if source == "apache.log" %}selected{% endif %}>apache.log</option>
+                    <option value="firewall.log" {% if source == "firewall.log" %}selected{% endif %}>firewall.log</option>
+                </select>
+            </div>
+
+            <div class="form-row">
+                <select name="severity">
+                    <option value="">All Severity</option>
+                    <option value="LOW" {% if severity == "LOW" %}selected{% endif %}>LOW</option>
+                    <option value="MEDIUM" {% if severity == "MEDIUM" %}selected{% endif %}>MEDIUM</option>
+                    <option value="HIGH" {% if severity == "HIGH" %}selected{% endif %}>HIGH</option>
+                    <option value="CRITICAL" {% if severity == "CRITICAL" %}selected{% endif %}>CRITICAL</option>
+                </select>
+            </div>
+
+            <button type="submit">Apply Filters</button>
+        </form>
+    </div>
+
+    <table class="alert-table">
+        <tr>
+            <th>Time</th>
+            <th>IP</th>
+            <th>Event Type</th>
+            <th>Source</th>
+            <th>Service</th>
+            <th>Severity</th>
+            <th>Raw Event</th>
+        </tr>
+
+        {% if events %}
+            {% for event in events %}
+            <tr>
+                <td>{{ event.timestamp }}</td>
+                <td>{{ event.source_ip }}</td>
+                <td>{{ event.event_type }}</td>
+                <td>{{ event.source }}</td>
+                <td>{{ event.service }}</td>
+                <td>
+                    {% if event.severity == "LOW" %}
+                    <span class="badge badge-low">LOW</span>
+                    {% elif event.severity == "MEDIUM" %}
+                    <span class="badge badge-medium">MEDIUM</span>
+                    {% elif event.severity == "HIGH" %}
+                    <span class="badge badge-high">HIGH</span>
+                    {% else %}
+                    <span class="badge badge-critical">CRITICAL</span>
+                    {% endif %}
+                </td>
+                <td><pre class="raw-log-box">{{ event.raw }}</pre></td>
+            </tr>
+            {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="7">No events found.</td>
+            </tr>
+        {% endif %}
+    </table>
+</div>
+
+</body>
+</html>

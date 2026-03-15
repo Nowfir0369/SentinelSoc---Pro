@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SentinelSOC - Alerts</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body data-theme="{{ settings.theme }}">
+
+<div class="sidebar">
+    <h2>SentinelSOC Pro</h2>
+    <p class="credit">Built by Nowfir</p>
+    <ul>
+        <li><a href="/">Dashboard</a></li>
+        <li><a href="/events">Events</a></li>
+        <li><a href="/campaigns">Campaigns</a></li>
+        <li><a href="/watchlist">Watchlist</a></li>
+        <li><a href="/alerts">Alerts</a></li>
+        <li><a href="/incidents">Incidents</a></li>
+        <li><a href="/threat">Threat Intel</a></li>
+        <li><a href="/reports">Reports</a></li>
+        <li><a href="/settings">Settings</a></li>
+    </ul>
+</div>
+
+<div class="main">
+    <h1>Security Alerts</h1>
+
+    <div class="card" style="margin-bottom:20px;">
+        <form method="GET" action="/alerts">
+            <p><input type="text" name="q" value="{{ q }}" placeholder="Search IP, type, country, city, MITRE" style="width:100%;padding:10px;"></p>
+
+            <p>
+                <select name="severity" style="width:100%;padding:10px;">
+                    <option value="">All Severity</option>
+                    <option value="LOW" {% if severity == "LOW" %}selected{% endif %}>LOW</option>
+                    <option value="MEDIUM" {% if severity == "MEDIUM" %}selected{% endif %}>MEDIUM</option>
+                    <option value="HIGH" {% if severity == "HIGH" %}selected{% endif %}>HIGH</option>
+                    <option value="CRITICAL" {% if severity == "CRITICAL" %}selected{% endif %}>CRITICAL</option>
+                </select>
+            </p>
+
+            <p>
+                <select name="disposition" style="width:100%;padding:10px;">
+                    <option value="">All Disposition</option>
+                    <option value="UNREVIEWED" {% if disposition == "UNREVIEWED" %}selected{% endif %}>UNREVIEWED</option>
+                    <option value="TRUE_POSITIVE" {% if disposition == "TRUE_POSITIVE" %}selected{% endif %}>TRUE POSITIVE</option>
+                    <option value="FALSE_POSITIVE" {% if disposition == "FALSE_POSITIVE" %}selected{% endif %}>FALSE POSITIVE</option>
+                    <option value="ESCALATED" {% if disposition == "ESCALATED" %}selected{% endif %}>ESCALATED</option>
+                </select>
+            </p>
+
+            <p><button type="submit">Apply Filters</button></p>
+        </form>
+    </div>
+
+    <p>
+        <a href="/export/json"><button>Export JSON</button></a>
+        <a href="/export/csv"><button>Export CSV</button></a>
+    </p>
+
+    <table class="alert-table">
+        <tr>
+            <th>IP</th>
+            <th>Type</th>
+            <th>Attempts</th>
+            <th>Severity</th>
+            <th>Correlation</th>
+            <th>Watchlist</th>
+            <th>Disposition</th>
+            <th>View</th>
+        </tr>
+
+        {% if alerts %}
+            {% for alert in alerts %}
+            <tr>
+                <td>{{ alert.source_ip }}</td>
+                <td>{{ alert.alert_type }}</td>
+                <td>{{ alert.failed_attempts }}</td>
+                <td>{{ alert.severity }}</td>
+                <td>{{ alert.campaign_level }} / {{ alert.correlation_score }}</td>
+                <td>
+                    {% if alert.watchlisted %}
+                        <span class="badge badge-critical">WATCHLISTED</span>
+                    {% else %}
+                        <span class="badge badge-low">NO</span>
+                    {% endif %}
+                </td>
+                <td>{{ alert.disposition }}</td>
+                <td><a href="/alert/{{ alert.id }}"><button>Details</button></a></td>
+            </tr>
+            {% endfor %}
+        {% else %}
+            <tr><td colspan="8">No alerts found</td></tr>
+        {% endif %}
+    </table>
+</div>
+
+</body>
+</html>
